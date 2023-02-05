@@ -1,17 +1,11 @@
-# with open('token.txt', 'r') as file_object:
-#     token = file_object.read().strip()
 import time
 import requests
 from pprint import pprint
-# TOKEN = ""
-# tokenVK = ''
-import pandas as pd
-import numpy as np
-import sys
 import json
+import configparser  # импортируем библиотеку
 
-from setting import TOKEN
-from setting import tokenVK
+config = configparser.ConfigParser()  # создаём объекта парсера
+config.read("settings.ini")  # читаем конфиг
 
 
 class Yandex:
@@ -47,12 +41,10 @@ class Yandex:
         #     print('Загрузка успешна')
 
 
-ya = Yandex(TOKEN)
-
 class VKUser:
     url = 'https://api.vk.com/method/'
 
-    def __init__(self, token, version):
+    def __init__(self, tokenVK, version):
         self.params = {
             'access_token': tokenVK,
             'v': version
@@ -69,7 +61,8 @@ class VKUser:
         # print(req)
         return req['response']['items']
 
-    def search_photos(self, user_id=None, count=8):
+    def search_photos(self, user_id=None, count=6):
+        # self.user_id = input('user_id = ')
         url = self.url + 'photos.get'
         ph_params = {'owner_id': user_id,
                      'album_id': 'profile',
@@ -78,13 +71,20 @@ class VKUser:
                      'count': count
                      }
         respon = requests.get(url, params={**self.params, **ph_params}).json()
+        pprint(respon)
         data_foto = []
+        s = []
         for el in respon['response']['items']:
             size_foto = {'s': 1, 'm': 2, 'o': 3, 'p': 4, 'q': 5, 'r': 6, 'x': 7, 'y': 8, 'z': 9, 'w': 10}
             file_url = max(el['sizes'], key=lambda x: size_foto[x['type']])
 
             name_like = str(el['likes']['count'])
-            name_data = f'{name_like}_{el["date"]}'
+            s.append(str(el['likes']))
+            time_string = time.strftime("%d%m_%Y_%H%M", time.localtime(el["date"]))
+            name_data = f'{name_like}'
+            if name_like in s:
+                name_data = f'{name_like}_{time_string}'
+
             for key, val in file_url.items():
                 if key == 'url':
                     file_url = val
@@ -93,24 +93,40 @@ class VKUser:
             ya.upload_from_internet(name_data, file_url)
             data_foto.append({'file_name': f'{name_data}.jpg', 'size': f'{el["sizes"][-1]["type"]}'})
         # pprint(data_foto)
+        with open('data_photos.json', 'w') as write_f:
+            json.dump(data_foto, write_f, indent=2)
         return data_foto
 
 
-vk_client = VKUser(tokenVK, '5.131')
+# ya = Yandex(TOKEN)
+# vk_client = VKUser(tokenVK, '5.131')
 # print(ya.create_folders(input('Folder name? :')))
 # pprint(vk_client.search_photos())
 
 if __name__ == '__main__':
+    print(config["VK"]["tokenVK"])
+    TOKEN = config["YA"]["TOKEN"]
+    tokenVK = config["VK"]["tokenVK"]
+    print(TOKEN)
     vk_client = VKUser(tokenVK, '5.131')
     ya = Yandex(TOKEN)
-    pprint('                     ВНИМАНИЕ \nфотографии копируются  на Ядиск в папку"Photo"\nНеобходимо создать её, если изначально не было')
+    pprint(
+        'ВНИМАНИЕ \nфотографии копируются  на Ядиск в папку "Photo" \n Необходимо создать её, если изначально не было')
     while True:
         comand = input('     Введите команду \n f - создать папку, p -загрузить фото из VK или q -выход: ')
         if comand == 'f':
             print(ya.create_folders(input('Folder name? :')))
 
         elif comand == 'p':
-            pprint(vk_client.search_photos())
+            n = input('Желаете изменить id_user и кол-во фото?\n да-Введите- "y", если нет-Введите- "n": ')
+            if n == 'y':
+                user_id = input('user_id = ')
+                count = int(input('count_foto= '))
+                pprint(vk_client.search_photos(user_id, count))
+            elif n == 'n':
+                pprint(vk_client.search_photos())
+            else:
+                print('________Неверная команда')
 
         elif comand == 'q':
             print('Goodbye')
